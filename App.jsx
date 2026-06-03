@@ -34,21 +34,26 @@ function applyStyleGuide(text) {
     .trim();
 }
 
-// ✅ YOUR ADVANCED BASE COMMENT ENGINE (KEEP THIS!)
+function formatList(text) {
+  if (!text) return "";
+  return text.replace(/ and /gi, ", ");
+}
+
+// ✅ ✅ YOUR BASE GENERATOR (UNCHANGED BACKUP)
 function baseComment(data) {
   const p = pronouns[data.gender] || "he";
   const P = capitalise(p);
 
-  const traits = data.traits;
-  const behaviour = data.behaviour;
-  const capabilities = data.capabilities;
-  const topics = data.topics;
-  const concern = data.concern;
+  const traits = formatList(applyStyleGuide(data.traits));
+  const behaviour = applyStyleGuide(data.behaviour);
+  const capabilities = applyStyleGuide(data.capabilities);
+  const topics = applyStyleGuide(data.topics);
+  const concern = applyStyleGuide(data.concern);
 
   let sentences = [];
 
   if (traits && behaviour) {
-    sentences.push(`^n is ${traits}, ${behaviour}, and approaches classroom tasks with a positive attitude`);
+    sentences.push(`${P} is ${traits}, ${behaviour}, and approaches classroom tasks with a positive attitude`);
   }
 
   if (capabilities) {
@@ -68,25 +73,36 @@ function baseComment(data) {
   return sentences.map(s => capitalise(s) + ".").join(" ");
 }
 
-// ✅ AI REFINEMENT LAYER (NEW)
-async function refineWithAI(exampleText, baseText) {
-  if (!API_KEY || !exampleText.trim()) return baseText;
+// ✅ ✅ NEW AI GENERATOR (FULLY VARIABLE — NO TEMPLATE LOCK)
+async function generateWithAI(exampleText, data) {
+  if (!API_KEY || !exampleText.trim()) return "";
 
   const prompt = `
 You are an experienced teacher writing report comments.
 
-Here are examples of your writing style:
+Here are example comments showing your writing style:
 ${exampleText}
 
-Now rewrite the following comment so that it:
-- Matches the tone and style of the examples
-- Sounds natural and personalised
-- Uses varied sentence structure
-- Avoids repetition
-- Keeps the meaning
+Write a NEW and COMPLETE report comment using the details below.
 
-Comment:
-${baseText}
+IMPORTANT RULES:
+- Each comment must be written differently from the others
+- Use different sentence structures each time
+- Do NOT follow a fixed structure
+- Vary sentence openings
+- Avoid repetitive phrasing
+- Make it sound natural and individually written
+- Keep professional tone
+
+Learner information:
+Subject: ${data.subject}
+Traits: ${data.traits}
+Behaviour: ${data.behaviour}
+Topics covered: ${data.topics}
+Capabilities: ${data.capabilities}
+Area of concern: ${data.concern}
+
+Write a full report comment now.
 `;
 
   try {
@@ -99,16 +115,16 @@ ${baseText}
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.9
+        temperature: 1.0 // ✅ HIGH variation
       })
     });
 
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || baseText;
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content || "";
 
   } catch (error) {
-    console.error("AI Error:", error);
-    return baseText; // fallback ✅
+    console.error("AI error:", error);
+    return "";
   }
 }
 
@@ -144,19 +160,32 @@ export default function App() {
           concern
         ] = row.split(",").map(v => clean(v));
 
-        // ✅ STEP 1: Generate base comment
-        const base = baseComment({
-          gender,
-          subject,
-          traits,
-          behaviour,
-          topics,
-          capabilities,
-          concern
-        });
+        let finalComment = "";
 
-        // ✅ STEP 2: AI refines it
-        const finalComment = await refineWithAI(aiExamples, base);
+        // ✅ USE AI FIRST
+        if (API_KEY && aiExamples.trim()) {
+          finalComment = await generateWithAI(aiExamples, {
+            subject,
+            traits,
+            behaviour,
+            topics,
+            capabilities,
+            concern
+          });
+        }
+
+        // ✅ FALLBACK TO YOUR SYSTEM
+        if (!finalComment) {
+          finalComment = baseComment({
+            gender,
+            subject,
+            traits,
+            behaviour,
+            topics,
+            capabilities,
+            concern
+          });
+        }
 
         newNames.push(name);
         newComments.push(finalComment);
@@ -214,6 +243,7 @@ export default function App() {
           style={{ width: "100%" }}
           value={aiExamples}
           onChange={(e) => setAiExamples(e.target.value)}
+          placeholder="Paste previous comments here to train style..."
         />
       </Box>
 
@@ -234,3 +264,4 @@ export default function App() {
     </div>
   );
 }
+``
