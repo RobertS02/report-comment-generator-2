@@ -10,122 +10,115 @@ const Button = (props) => (
   <button style={{ padding: 8, margin: 5 }} {...props} />
 );
 
-const API_KEY = ""; // 🔴 ADD YOUR KEY HERE
-
-const pronouns = { male: "he", female: "she" };
-
 // HELPERS
-function capitalise(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+function clean(v) {
+  return v ? v.trim() : "";
 }
 
-function clean(value) {
-  return value ? value.trim() : "";
+function cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// ✅ ✅ STRONG BASE ENGINE (RESTORED)
-function baseComment(data) {
-  const p = pronouns[data.gender] || "he";
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-  let sentences = [];
+// ✅ ✅ ✅ PHRASE MATRIX ENGINE
+function generateComment(data) {
+  const p = data.gender === "female" ? "she" : "he";
 
-  if (data.traits && data.behaviour) {
-    sentences.push(`^n is ${data.traits}, ${data.behaviour}, and approaches classroom tasks with a positive attitude`);
-  }
+  // ✅ SLOT 1: TRAITS + BEHAVIOUR
+  const openings = [
+    "^n is a pleasure to teach",
+    "^n is a well-rounded learner",
+    "^n is a quiet and reserved student",
+    "^n is a hardworking and dedicated learner",
+    "^n is an enthusiastic and engaged student"
+  ];
 
-  if (data.capabilities) {
-    sentences.push(`${p} shows ${data.capabilities} in ${data.subject} and is becoming more confident`);
-  }
+  const behaviourPhrases = [
+    "with very good manners",
+    "who contributes positively in class",
+    "who applies himself consistently",
+    "who shows a positive attitude towards learning",
+    "who engages well with class work"
+  ];
 
-  if (data.topics) {
-    sentences.push(`${p} has worked with topics such as ${data.topics} and is developing a stronger understanding`);
-  }
+  // ✅ SLOT 2: PERFORMANCE
+  const performanceStarters = [
+    "^n has shown strong ability",
+    "^n has performed well",
+    "^n has demonstrated good understanding",
+    "^n has achieved pleasing results",
+    "^n has shown promising progress"
+  ];
 
-  sentences.push("This progress is encouraging.");
+  const performanceEndings = [
+    `in ${data.subject}`,
+    `throughout the term`,
+    `in recent assessments`,
+    `during this semester`,
+    `in class tasks`
+  ];
 
-  if (data.concern) {
-    sentences.push(`${p} should focus on improving ${data.concern} to strengthen overall performance`);
-  }
+  // ✅ SLOT 3: CONTRAST
+  const contrasts = [
+    "However",
+    "Although",
+    "There have been moments where",
+    "At times",
+    "More recently"
+  ];
 
-  return sentences
-    .map(s => capitalise(s) + ".")
+  const issues = [
+    `${p} has struggled with ${data.concern}`,
+    `${p} has shown some inconsistency`,
+    `${p} has lost focus in certain assessments`,
+    `${p} has found some difficulty in key areas`,
+    `${p} needs to improve focus and consistency`
+  ];
+
+  // ✅ SLOT 4: DEVELOPMENT
+  const improvement = [
+    `Greater focus on ${data.concern} will help ${p} improve`,
+    `Some attention to ${data.concern} will support further progress`,
+    `Working on ${data.concern} will allow ${p} to achieve stronger results`,
+    `Improving ${data.concern} will greatly benefit overall performance`,
+    `Continued effort in ${data.concern} will lead to improvement`
+  ];
+
+  // ✅ SLOT 5: ENCOURAGEMENT
+  const encouragement = [
+    "Hou aan met die harde werk, ^n.",
+    "Baie mooi, ^n.",
+    "Ek is trots op jou.",
+    "Hou so aan, ^n.",
+    "Jy kan dit doen, ^n."
+  ];
+
+  // ✅ BUILD COMMENT
+  const sentence1 = `${pick(openings)} ${pick(behaviourPhrases)}.`;
+  const sentence2 = `${pick(performanceStarters)} ${pick(performanceEndings)}.`;
+  const sentence3 = `${pick(contrasts)}, ${pick(issues)}.`;
+  const sentence4 = `${pick(improvement)}.`;
+  const sentence5 = `${pick(encouragement)}`;
+
+  return [sentence1, sentence2, sentence3, sentence4, sentence5]
+    .map(cap)
     .join(" ");
-}
-
-// ✅ ✅ AI REWRITER (CORRECT ROLE)
-async function refineWithAI(styleText, baseText) {
-  if (!API_KEY || !styleText.trim()) return baseText;
-
-  const prompt = `
-You are an experienced teacher.
-
-Below are example report comments that define your writing style:
-${styleText}
-
-Now rewrite the following report comment.
-
-IMPORTANT RULES:
-- Keep the meaning exactly the same
-- KEEP the use of ^n
-- Do NOT follow the same sentence structure
-- Change how sentences begin
-- Vary sentence flow
-- Avoid repetitive phrasing
-- Make it sound natural and human-written
-
-Base comment:
-${baseText}
-`;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 1.1
-      })
-    });
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || baseText;
-
-  } catch (err) {
-    console.error(err);
-    return baseText;
-  }
 }
 
 export default function App() {
   const [names, setNames] = useState([]);
   const [comments, setComments] = useState([]);
-  const [styleText, setStyleText] = useState("");
 
-  // ✅ STYLE FILE
-  const handleStyleUpload = (e) => {
+  const handleUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
+
     reader.onload = (event) => {
-      setStyleText(event.target.result);
-    };
-
-    reader.readAsText(file);
-  };
-
-  // ✅ CSV
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onload = async (event) => {
       const rows = event.target.result.split("\n");
 
       const newNames = [];
@@ -144,18 +137,20 @@ export default function App() {
           topics,
           capabilities,
           concern
-        ] = row.split(",").map(v => clean(v));
+        ] = row.split(",").map(clean);
 
-        // ✅ STEP 1: strong base
-        const base = baseComment({
-          gender, subject, traits, behaviour, topics, capabilities, concern
+        const comment = generateComment({
+          gender,
+          subject,
+          traits,
+          behaviour,
+          topics,
+          capabilities,
+          concern
         });
 
-        // ✅ STEP 2: AI rewrite
-        const final = await refineWithAI(styleText, base);
-
         newNames.push(name);
-        newComments.push(final);
+        newComments.push(comment);
       }
 
       setNames(newNames);
@@ -168,7 +163,7 @@ export default function App() {
   const downloadTemplate = () => {
     const csv =
       "name,gender,subject,traits,behaviour,topics,capabilities,concern\n" +
-      "John,male,Mathematics,positive and respectful,well-behaved,algebra,strong reasoning,accuracy";
+      "John,male,Mathematics,positive,respectful,algebra,strong reasoning,accuracy";
 
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
@@ -201,12 +196,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Report Comment Generator (Hybrid AI)</h1>
-
-      <Box>
-        <h3>Upload Style Document</h3>
-        <input type="file" accept=".txt" onChange={handleStyleUpload} />
-      </Box>
+      <h1>Report Comment Generator (Phrase Matrix)</h1>
 
       <Box>
         <Button onClick={downloadTemplate}>Download Template</Button>
