@@ -7,135 +7,182 @@ const Box = ({ children }) => (
 );
 
 const Button = (props) => (
-  <button style={{ padding: 8, marginTop: 6 }} {...props} />
+  <button style={{ padding: 8, margin: 5 }} {...props} />
 );
 
-const subjects = [
-  "Mathematics",
-  "English Home Language",
-  "Afrikaans First Additional Language"
-];
+const API_KEY = ""; // 🔴 ADD YOUR KEY HERE
 
-const charLimits = {
-  short: 180,
-  medium: 300,
-  long: 450
-};
-
-const openings = [
-  "^n demonstrates",
-  "^n shows",
-  "^n continues to show",
-  "^n is developing"
-];
-
-const performanceStarters = [
-  "has shown",
-  "demonstrates",
-  "is building",
-  "is developing"
-];
-
-const topicStarters = [
-  "has engaged with topics such as",
-  "has worked through topics including",
-  "has covered areas such as",
-  "has been introduced to concepts such as"
-];
-
-const subjectPhrases = {
-  Mathematics: [
-    "a solid understanding of key concepts",
-    "a growing confidence in problem-solving",
-    "a good grasp of the work covered"
-  ],
-  "English Home Language": [
-    "confidence in reading and writing",
-    "a good understanding of language skills"
-  ],
-  "Afrikaans First Additional Language": [
-    "good progress in language usage",
-    "growing confidence in Afrikaans"
-  ]
-};
-
-const pronouns = {
-  male: "he",
-  female: "she"
-};
-
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+// ✅ BASIC CLEAN
+function clean(value) {
+  return value ? value.trim() : "";
 }
 
-function getReference(step, gender) {
-  const p = pronouns[gender] || "they";
-  return ["^n", p, p, "^n", p][step % 5];
+// ✅ AI FUNCTION
+async function generateWithAI(exampleText, data) {
+  const prompt = `
+Here are example teacher report comments:
+${exampleText}
+
+Write a new comment in the SAME style.
+
+Details:
+Subject: ${data.subject}
+Traits: ${data.traits}
+Behaviour: ${data.behaviour}
+Topics: ${data.topics}
+Capabilities: ${data.capabilities}
+Concern: ${data.concern}
+
+Rules:
+- Use natural teacher tone
+- Vary sentence structure
+- Avoid repetition
+- Keep it professional and personalised
+`;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.8
+    })
+  });
+
+  const dataRes = await response.json();
+  return dataRes.choices[0].message.content;
 }
 
 export default function App() {
-  const [subject, setSubject] = useState(subjects[0]);
-  const [topics, setTopics] = useState("");
-  const [traits, setTraits] = useState("");
-  const [gender, setGender] = useState("male");
-  const [length, setLength] = useState("medium");
-  const [comment, setComment] = useState("");
+  const [names, setNames] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [aiExamples, setAiExamples] = useState("");
 
-  const generate = () => {
-    let text = "";
-    let step = 0;
-    const limit = charLimits[length];
+  // ✅ CSV UPLOAD
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const add = (sentence) => {
-      if ((text + " " + sentence).trim().length <= limit) {
-        text += (text ? " " : "") + sentence;
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+      const rows = event.target.result.split("\n");
+
+      const newNames = [];
+      const newComments = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i].trim();
+        if (!row) continue;
+
+        const [
+          name,
+          gender,
+          subject,
+          traits,
+          behaviour,
+          topics,
+          capabilities,
+          concern,
+          length
+        ] = row.split(",").map(v => clean(v));
+
+        newNames.push(name);
+
+        let comment;
+
+        // ✅ USE AI IF PROVIDED
+        if (API_KEY && aiExamples.trim()) {
+          comment = await generateWithAI(aiExamples, {
+            subject,
+            traits,
+            behaviour,
+            topics,
+            capabilities,
+            concern
+          });
+        } else {
+          comment = `^n is ${traits} and ${behaviour}. He is making progress in ${subject}.`;
+        }
+
+        newComments.push(comment);
       }
+
+      setNames(newNames);
+      setComments(newComments);
     };
 
-    add(`${pick(openings)} consistent effort in ${subject}.`);
-    add(`${getReference(step++, gender)} ${pick(performanceStarters)} ${pick(subjectPhrases[subject])}.`);
+    reader.readAsText(file);
+  };
 
-    if (topics) {
-      add(`${getReference(step++, gender)} ${pick(topicStarters)} ${topics}.`);
+  // ✅ TEMPLATE
+  const downloadTemplate = () => {
+    const csv =
+      "name,gender,subject,traits,behaviour,topics,capabilities,concern,length\n" +
+      "John,male,Mathematics,positive and respectful,well-behaved,algebra,strong problem-solving,accuracy,long";
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "template.csv";
+    a.click();
+  };
+
+  // ✅ WORD EXPORT
+  const exportToWord = () => {
+    let content = "<table border='1' style='border-collapse: collapse;'>";
+
+    for (let i = 0; i < comments.length; i++) {
+      content += `
+        <tr>
+          <td style="padding:8px;"><b>${names[i]}</b></td>
+          <td style="padding:8px;">${comments[i]}</td>
+        </tr>
+      `;
     }
 
-    if (traits) {
-      add(`${getReference(step++, gender)} ${traits}.`);
-    }
+    content += "</table>";
 
-    setComment(text);
+    const blob = new Blob([content], { type: "application/msword" });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "report-comments.doc";
+    a.click();
   };
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Report Comment Generator</h1>
+      <h1>Report Comment Generator (AI Enabled)</h1>
 
       <Box>
-        <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-          {subjects.map((s) => <option key={s}>{s}</option>)}
-        </select>
-
-        <select value={gender} onChange={(e) => setGender(e.target.value)}>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-        </select>
-
-        <select value={length} onChange={(e) => setLength(e.target.value)}>
-          <option value="short">Short</option>
-          <option value="medium">Medium</option>
-          <option value="long">Long</option>
-        </select>
-
-        <input placeholder="Topics covered" value={topics} onChange={(e) => setTopics(e.target.value)} />
-        <input placeholder="Learner traits" value={traits} onChange={(e) => setTraits(e.target.value)} />
-
-        <Button onClick={generate}>Generate Comment</Button>
-
-        <p>Characters: {comment.length} / {charLimits[length]}</p>
+        <h3>Paste Example Comments</h3>
+        <textarea
+          rows={6}
+          style={{ width: "100%" }}
+          placeholder="Paste previous report comments here..."
+          value={aiExamples}
+          onChange={(e) => setAiExamples(e.target.value)}
+        />
       </Box>
 
       <Box>
-        <p>{comment}</p>
+        <Button onClick={downloadTemplate}>Download Template</Button>
+        <input type="file" accept=".csv" onChange={handleUpload} />
+        <Button onClick={exportToWord}>Export to Word</Button>
+      </Box>
+
+      <Box>
+        <h3>Generated Comments</h3>
+        {comments.map((c, i) => (
+          <p key={i}>
+            <b>{names[i]}</b>: {c}
+          </p>
+        ))}
       </Box>
     </div>
   );
