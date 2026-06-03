@@ -10,6 +10,8 @@ const Button = (props) => (
   <button style={{ padding: 8, margin: 5 }} {...props} />
 );
 
+const API_KEY = ""; // 🔴 ADD YOUR KEY HERE
+
 // HELPERS
 function clean(v) {
   return v ? v.trim() : "";
@@ -23,95 +25,93 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// ✅ ✅ ✅ PHRASE MATRIX ENGINE
-function generateComment(data) {
-  const p = data.gender === "female" ? "she" : "he";
-
-  // ✅ SLOT 1: TRAITS + BEHAVIOUR
-  const openings = [
-    "^n is a pleasure to teach",
-    "^n is a well-rounded learner",
-    "^n is a quiet and reserved student",
-    "^n is a hardworking and dedicated learner",
-    "^n is an enthusiastic and engaged student"
-  ];
-
-  const behaviourPhrases = [
-    "with very good manners",
-    "who contributes positively in class",
-    "who applies himself consistently",
-    "who shows a positive attitude towards learning",
-    "who engages well with class work"
-  ];
-
-  // ✅ SLOT 2: PERFORMANCE
-  const performanceStarters = [
-    "^n has shown strong ability",
-    "^n has performed well",
-    "^n has demonstrated good understanding",
-    "^n has achieved pleasing results",
-    "^n has shown promising progress"
-  ];
-
-  const performanceEndings = [
-    `in ${data.subject}`,
-    `throughout the term`,
-    `in recent assessments`,
-    `during this semester`,
-    `in class tasks`
-  ];
-
-  // ✅ SLOT 3: CONTRAST
-  const contrasts = [
-    "However",
-    "Although",
-    "There have been moments where",
-    "At times",
-    "More recently"
-  ];
-
-  const issues = [
-    `${p} has struggled with ${data.concern}`,
-    `${p} has shown some inconsistency`,
-    `${p} has lost focus in certain assessments`,
-    `${p} has found some difficulty in key areas`,
-    `${p} needs to improve focus and consistency`
-  ];
-
-  // ✅ SLOT 4: DEVELOPMENT
-  const improvement = [
-    `Greater focus on ${data.concern} will help ${p} improve`,
-    `Some attention to ${data.concern} will support further progress`,
-    `Working on ${data.concern} will allow ${p} to achieve stronger results`,
-    `Improving ${data.concern} will greatly benefit overall performance`,
-    `Continued effort in ${data.concern} will lead to improvement`
-  ];
-
-  // ✅ SLOT 5: ENCOURAGEMENT
-  const encouragement = [
-    "Hou aan met die harde werk, ^n.",
-    "Baie mooi, ^n.",
-    "Ek is trots op jou.",
-    "Hou so aan, ^n.",
-    "Jy kan dit doen, ^n."
-  ];
-
-  // ✅ BUILD COMMENT
-  const sentence1 = `${pick(openings)} ${pick(behaviourPhrases)}.`;
-  const sentence2 = `${pick(performanceStarters)} ${pick(performanceEndings)}.`;
-  const sentence3 = `${pick(contrasts)}, ${pick(issues)}.`;
-  const sentence4 = `${pick(improvement)}.`;
-  const sentence5 = `${pick(encouragement)}`;
-
-  return [sentence1, sentence2, sentence3, sentence4, sentence5]
-    .map(cap)
-    .join(" ");
-}
-
 export default function App() {
   const [names, setNames] = useState([]);
   const [comments, setComments] = useState([]);
+  const [styleText, setStyleText] = useState("");
+  const [styleBank, setStyleBank] = useState(null);
 
+  // ✅ STEP 1: EXTRACT STYLE USING AI
+  const analyseStyle = async () => {
+    if (!API_KEY || !styleText) return;
+
+    const prompt = `
+Analyse the following teacher comments and extract writing patterns.
+
+Return ONLY JSON with:
+{
+  "openings": [],
+  "performance": [],
+  "contrast": [],
+  "issues": [],
+  "improvement": [],
+  "encouragement": []
+}
+
+Comments:
+${styleText}
+`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: \`Bearer \${API_KEY}\`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7
+      })
+    });
+
+    const data = await res.json();
+
+    try {
+      const json = JSON.parse(data.choices[0].message.content);
+      setStyleBank(json);
+    } catch {
+      console.error("Style parse failed");
+    }
+  };
+
+  // ✅ DEFAULT FALLBACK PHRASES
+  const defaultBank = {
+    openings: ["^n is a well-rounded learner", "^n is a pleasure to teach"],
+    performance: ["^n has shown good progress", "^n has performed well"],
+    contrast: ["However", "Although"],
+    issues: ["he has struggled with focus", "he has shown inconsistency"],
+    improvement: ["Greater focus will help improve performance"],
+    encouragement: ["Hou aan hard werk, ^n."]
+  };
+
+  // ✅ PHRASE MATRIX USING STYLE BANK
+  function generateComment(data) {
+    const bank = styleBank || defaultBank;
+    const p = data.gender === "female" ? "she" : "he";
+
+    const s1 = \`\${pick(bank.openings)}.\`;
+    const s2 = \`\${pick(bank.performance)} in \${data.subject}.\`;
+    const s3 = \`\${pick(bank.contrast)}, \${pick(bank.issues)}.\`;
+    const s4 = \`\${pick(bank.improvement)}.\`;
+    const s5 = \`\${pick(bank.encouragement)}\`;
+
+    return [s1, s2, s3, s4, s5].map(cap).join(" ");
+  }
+
+  // ✅ UPLOAD STYLE FILE
+  const handleStyleUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setStyleText(event.target.result);
+    };
+    reader.readAsText(file);
+  };
+
+  // ✅ CSV
   const handleUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -128,16 +128,8 @@ export default function App() {
         const row = rows[i].trim();
         if (!row) continue;
 
-        const [
-          name,
-          gender,
-          subject,
-          traits,
-          behaviour,
-          topics,
-          capabilities,
-          concern
-        ] = row.split(",").map(clean);
+        const [name, gender, subject, traits, behaviour, topics, capabilities, concern] =
+          row.split(",").map(clean);
 
         const comment = generateComment({
           gender,
@@ -160,6 +152,7 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // ✅ TEMPLATE
   const downloadTemplate = () => {
     const csv =
       "name,gender,subject,traits,behaviour,topics,capabilities,concern\n" +
@@ -172,16 +165,16 @@ export default function App() {
     a.click();
   };
 
+  // ✅ WORD EXPORT
   const exportToWord = () => {
     let content = "<table border='1' style='border-collapse: collapse;'>";
 
     for (let i = 0; i < comments.length; i++) {
-      content += `
+      content += \`
         <tr>
-          <td style="padding:8px;"><b>${names[i]}</b></td>
-          <td style="padding:8px;">${comments[i]}</td>
-        </tr>
-      `;
+          <td style="padding:8px;"><b>\${names[i]}</b></td>
+          <td style="padding:8px;">\${comments[i]}</td>
+        </tr>\`;
     }
 
     content += "</table>";
@@ -196,7 +189,13 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Report Comment Generator (Phrase Matrix)</h1>
+      <h1>Report Comment Generator (Teacher Style AI)</h1>
+
+      <Box>
+        <h3>Upload Teacher Comments (Style Learning)</h3>
+        <input type="file" accept=".txt" onChange={handleStyleUpload} />
+        <Button onClick={analyseStyle}>Analyse Style</Button>
+      </Box>
 
       <Box>
         <Button onClick={downloadTemplate}>Download Template</Button>
