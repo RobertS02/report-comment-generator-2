@@ -23,95 +23,58 @@ function clean(value) {
   return value ? value.trim() : "";
 }
 
-function applyStyleGuide(text) {
-  if (!text) return "";
-  return text
-    .replace(/insightfil/gi, "insightful")
-    .replace(/triganomotary/gi, "trigonometry")
-    .replace(/learner|pupil|boy|girl/gi, "student")
-    .replace(/maths/gi, "Mathematics")
-    .replace(/needs /gi, "should ")
-    .trim();
-}
-
-function formatList(text) {
-  if (!text) return "";
-  return text.replace(/ and /gi, ", ");
-}
-
-// ✅ BASE GENERATOR (UNCHANGED BACKUP)
+// ✅ ✅ STRONG BASE ENGINE (RESTORED)
 function baseComment(data) {
   const p = pronouns[data.gender] || "he";
-  const P = capitalise(p);
-
-  const traits = formatList(applyStyleGuide(data.traits));
-  const behaviour = applyStyleGuide(data.behaviour);
-  const capabilities = applyStyleGuide(data.capabilities);
-  const topics = applyStyleGuide(data.topics);
-  const concern = applyStyleGuide(data.concern);
 
   let sentences = [];
 
-  if (traits && behaviour) {
-    sentences.push(`${P} is ${traits}, ${behaviour}, and approaches classroom tasks positively`);
+  if (data.traits && data.behaviour) {
+    sentences.push(`^n is ${data.traits}, ${data.behaviour}, and approaches classroom tasks with a positive attitude`);
   }
 
-  if (capabilities) {
-    sentences.push(`${P} shows ${capabilities} and is becoming more confident in ${data.subject}`);
+  if (data.capabilities) {
+    sentences.push(`${p} shows ${data.capabilities} in ${data.subject} and is becoming more confident`);
   }
 
-  if (topics) {
-    sentences.push(`${P} has worked with topics such as ${topics}`);
+  if (data.topics) {
+    sentences.push(`${p} has worked with topics such as ${data.topics} and is developing a stronger understanding`);
   }
 
   sentences.push("This progress is encouraging.");
 
-  if (concern) {
-    sentences.push(`${P} should focus on improving ${concern}`);
+  if (data.concern) {
+    sentences.push(`${p} should focus on improving ${data.concern} to strengthen overall performance`);
   }
 
-  return sentences.map(s => capitalise(s) + ".").join(" ");
+  return sentences
+    .map(s => capitalise(s) + ".")
+    .join(" ");
 }
 
-// ✅ ✅ ✅ FINAL AI ENGINE (STYLE PERSONAS ADDED)
-async function generateWithAI(exampleText, data) {
-  if (!API_KEY || !exampleText.trim()) return "";
-
-  const styles = [
-    "Write in a traditional, structured teacher tone.",
-    "Write in a conversational and natural teacher style.",
-    "Write in an analytical teacher style focusing on performance.",
-    "Write in a supportive and encouraging tone."
-  ];
-
-  const chosenStyle = styles[Math.floor(Math.random() * styles.length)];
+// ✅ ✅ AI REWRITER (CORRECT ROLE)
+async function refineWithAI(styleText, baseText) {
+  if (!API_KEY || !styleText.trim()) return baseText;
 
   const prompt = `
-You are an experienced teacher writing report comments.
+You are an experienced teacher.
 
-Study the examples below and adopt the same tone and style:
-${exampleText}
+Below are example report comments that define your writing style:
+${styleText}
 
-IMPORTANT:
-- Every comment must be written differently
-- Do NOT follow a fixed structure
-- Vary sentence openings
-- Change sentence flow and structure
-- Avoid repetition completely
-- Make it feel like each comment was written individually
+Now rewrite the following report comment.
 
-STYLE INSTRUCTION:
-${chosenStyle}
+IMPORTANT RULES:
+- Keep the meaning exactly the same
+- KEEP the use of ^n
+- Do NOT follow the same sentence structure
+- Change how sentences begin
+- Vary sentence flow
+- Avoid repetitive phrasing
+- Make it sound natural and human-written
 
-Learner details:
-Subject: ${data.subject}
-Traits: ${data.traits}
-Behaviour: ${data.behaviour}
-Topics: ${data.topics}
-Capabilities: ${data.capabilities}
-Area of concern: ${data.concern}
-
-Write a fully natural and unique report comment.
+Base comment:
+${baseText}
 `;
 
   try {
@@ -124,24 +87,38 @@ Write a fully natural and unique report comment.
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 1.2
+        temperature: 1.1
       })
     });
 
-    const result = await response.json();
-    return result.choices?.[0]?.message?.content || "";
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || baseText;
 
-  } catch (error) {
-    console.error("AI error:", error);
-    return "";
+  } catch (err) {
+    console.error(err);
+    return baseText;
   }
 }
 
 export default function App() {
   const [names, setNames] = useState([]);
   const [comments, setComments] = useState([]);
-  const [aiExamples, setAiExamples] = useState("");
+  const [styleText, setStyleText] = useState("");
 
+  // ✅ STYLE FILE
+  const handleStyleUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setStyleText(event.target.result);
+    };
+
+    reader.readAsText(file);
+  };
+
+  // ✅ CSV
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -169,35 +146,16 @@ export default function App() {
           concern
         ] = row.split(",").map(v => clean(v));
 
-        let finalComment = "";
+        // ✅ STEP 1: strong base
+        const base = baseComment({
+          gender, subject, traits, behaviour, topics, capabilities, concern
+        });
 
-        // ✅ AI generation FIRST
-        if (API_KEY && aiExamples.trim()) {
-          finalComment = await generateWithAI(aiExamples, {
-            subject,
-            traits,
-            behaviour,
-            topics,
-            capabilities,
-            concern
-          });
-        }
-
-        // ✅ fallback
-        if (!finalComment) {
-          finalComment = baseComment({
-            gender,
-            subject,
-            traits,
-            behaviour,
-            topics,
-            capabilities,
-            concern
-          });
-        }
+        // ✅ STEP 2: AI rewrite
+        const final = await refineWithAI(styleText, base);
 
         newNames.push(name);
-        newComments.push(finalComment);
+        newComments.push(final);
       }
 
       setNames(newNames);
@@ -243,17 +201,11 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Report Comment Generator (AI Enhanced)</h1>
+      <h1>Report Comment Generator (Hybrid AI)</h1>
 
       <Box>
-        <h3>Paste Example Comments</h3>
-        <textarea
-          rows={6}
-          style={{ width: "100%" }}
-          value={aiExamples}
-          onChange={(e) => setAiExamples(e.target.value)}
-          placeholder="Paste previous comments here..."
-        />
+        <h3>Upload Style Document</h3>
+        <input type="file" accept=".txt" onChange={handleStyleUpload} />
       </Box>
 
       <Box>
