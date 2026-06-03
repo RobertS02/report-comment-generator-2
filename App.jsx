@@ -39,7 +39,7 @@ function formatList(text) {
   return text.replace(/ and /gi, ", ");
 }
 
-// ✅ ✅ YOUR BASE GENERATOR (UNCHANGED BACKUP)
+// ✅ BASE GENERATOR (UNCHANGED BACKUP)
 function baseComment(data) {
   const p = pronouns[data.gender] || "he";
   const P = capitalise(p);
@@ -53,7 +53,7 @@ function baseComment(data) {
   let sentences = [];
 
   if (traits && behaviour) {
-    sentences.push(`${P} is ${traits}, ${behaviour}, and approaches classroom tasks with a positive attitude`);
+    sentences.push(`${P} is ${traits}, ${behaviour}, and approaches classroom tasks positively`);
   }
 
   if (capabilities) {
@@ -61,48 +61,57 @@ function baseComment(data) {
   }
 
   if (topics) {
-    sentences.push(`${P} has worked with topics such as ${topics} and applies this knowledge in class`);
+    sentences.push(`${P} has worked with topics such as ${topics}`);
   }
 
   sentences.push("This progress is encouraging.");
 
   if (concern) {
-    sentences.push(`${P} should focus on improving ${concern} to strengthen overall performance`);
+    sentences.push(`${P} should focus on improving ${concern}`);
   }
 
   return sentences.map(s => capitalise(s) + ".").join(" ");
 }
 
-// ✅ ✅ NEW AI GENERATOR (FULLY VARIABLE — NO TEMPLATE LOCK)
+// ✅ ✅ ✅ FINAL AI ENGINE (STYLE PERSONAS ADDED)
 async function generateWithAI(exampleText, data) {
   if (!API_KEY || !exampleText.trim()) return "";
+
+  const styles = [
+    "Write in a traditional, structured teacher tone.",
+    "Write in a conversational and natural teacher style.",
+    "Write in an analytical teacher style focusing on performance.",
+    "Write in a supportive and encouraging tone."
+  ];
+
+  const chosenStyle = styles[Math.floor(Math.random() * styles.length)];
 
   const prompt = `
 You are an experienced teacher writing report comments.
 
-Here are example comments showing your writing style:
+Study the examples below and adopt the same tone and style:
 ${exampleText}
 
-Write a NEW and COMPLETE report comment using the details below.
-
-IMPORTANT RULES:
-- Each comment must be written differently from the others
-- Use different sentence structures each time
+IMPORTANT:
+- Every comment must be written differently
 - Do NOT follow a fixed structure
 - Vary sentence openings
-- Avoid repetitive phrasing
-- Make it sound natural and individually written
-- Keep professional tone
+- Change sentence flow and structure
+- Avoid repetition completely
+- Make it feel like each comment was written individually
 
-Learner information:
+STYLE INSTRUCTION:
+${chosenStyle}
+
+Learner details:
 Subject: ${data.subject}
 Traits: ${data.traits}
 Behaviour: ${data.behaviour}
-Topics covered: ${data.topics}
+Topics: ${data.topics}
 Capabilities: ${data.capabilities}
 Area of concern: ${data.concern}
 
-Write a full report comment now.
+Write a fully natural and unique report comment.
 `;
 
   try {
@@ -115,7 +124,7 @@ Write a full report comment now.
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 1.0 // ✅ HIGH variation
+        temperature: 1.2
       })
     });
 
@@ -162,7 +171,7 @@ export default function App() {
 
         let finalComment = "";
 
-        // ✅ USE AI FIRST
+        // ✅ AI generation FIRST
         if (API_KEY && aiExamples.trim()) {
           finalComment = await generateWithAI(aiExamples, {
             subject,
@@ -174,7 +183,7 @@ export default function App() {
           });
         }
 
-        // ✅ FALLBACK TO YOUR SYSTEM
+        // ✅ fallback
         if (!finalComment) {
           finalComment = baseComment({
             gender,
@@ -243,7 +252,7 @@ export default function App() {
           style={{ width: "100%" }}
           value={aiExamples}
           onChange={(e) => setAiExamples(e.target.value)}
-          placeholder="Paste previous comments here to train style..."
+          placeholder="Paste previous comments here..."
         />
       </Box>
 
@@ -264,4 +273,3 @@ export default function App() {
     </div>
   );
 }
-``
